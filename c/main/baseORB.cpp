@@ -21,7 +21,7 @@ int main (int argc, char** argv)
   camera.fy = fSettings["Camera.fy"];
 
   int min_inliers = 5;
-  double max_norm = 3;
+  double max_norm = 0.3;
 
   // bool visualize = true;
   bool visualize = false;
@@ -64,6 +64,7 @@ int main (int argc, char** argv)
       outfile << fixed << setprecision(6) << vTimestamps[i] << " " <<  setprecision(9) << 0  << " " << 0 << " " << 0 << " " << 0 << " " << 0 << " " << 0 << " " << 1 << endl;
       continue;
     }
+    // cv::waitKey(0);
     // 比较currFrame 和 lastFrame
 
     Result_of_PnP result = MatchAndRansac(lastFrame, currFrame, camera);

@@ -1,4 +1,5 @@
 # include "SLAMBase.hpp"
+# include "slamorb.hpp"
 
 PointCloud::Ptr Image2PointCloud( cv::Mat& rgb, cv::Mat& depth, Camera_Intrinsic_Parameters& camera )
 {
@@ -53,17 +54,15 @@ Frame::Frame(void)
 
 Frame::Frame(int index, string rgb_path, string depth_path)
 {
-    rgb = cv::imread(rgb_path);
+    rgb = cv::imread(rgb_path, 0);
     depth = cv::imread(depth_path, -1);
     frameID = index;
 }
 
 void Frame::ComputeFeatAndDesp(void)
 {
-    cv::Ptr<cv::ORB> orb = cv::ORB::create(1000);
-
-    orb->detect(rgb, feat);
-    orb->compute(rgb, feat, desp);
+    cv::SLAMORB slam_orb(500, 1.2, 8, 20, 7);
+    slam_orb.compute(rgb, rgb, feat, desp);
 
     return;
 }
@@ -98,6 +97,8 @@ Result_of_PnP MatchAndRansac(Frame& frame1, Frame& frame2, Camera_Intrinsic_Para
 	vector< cv::DMatch > matches;
 	cv::BFMatcher matcher;
 	matcher.match(pic1_desp, pic2_desp, matches);
+  // cv::Ptr<cv::DescriptorMatcher> matcher = cv::DescriptorMatcher::create("BruteForce-Hamming");
+	// matcher->match(pic1_desp, pic2_desp, matches);
 	std::cout<<"Find total "<<matches.size()<<" matches."<<std::endl;
 
 	//output match
@@ -119,14 +120,15 @@ Result_of_PnP MatchAndRansac(Frame& frame1, Frame& frame2, Camera_Intrinsic_Para
 	}
 
 	std::cout<<"min_dis = "<<min_dis<<std::endl;
-  if(min_dis <= 20){
-      min_dis = 20;
+  if(min_dis <= 10){
+      min_dis = 10;
   }
 
 	//second:slecte the good feature points
 	for(size_t i = 0; i < matches.size(); i++)
 	{
-		if (matches[i].distance < 10*min_dis) goodMatch.push_back(matches[i]);
+		// if (matches[i].distance < 8*min_dis) goodMatch.push_back(matches[i]);
+		if (matches[i].distance < 240) goodMatch.push_back(matches[i]);
 	}
 
 	//output goodMatch
@@ -164,7 +166,16 @@ Result_of_PnP MatchAndRansac(Frame& frame1, Frame& frame2, Camera_Intrinsic_Para
 	cv::Mat cameraMatrix(3, 3, CV_64F, Camera_matrix);
 	cv::Mat rvec, tvec, inlPoint;
 
-	cv::solvePnPRansac(pic_obj, pic_img, cameraMatrix, cv::Mat(), rvec, tvec, false, 300, 8, 0.999, inlPoint);
+	// cv::solvePnPRansac(pic_obj, pic_img, cameraMatrix, cv::Mat(), rvec, tvec, false, 1000, 1, 0.99, inlPoint);
+  float err = 1.0;
+  for (int i = 0; i < 10; i++){
+	  cv::solvePnPRansac(pic_obj, pic_img, cameraMatrix, cv::Mat(), rvec, tvec, false, 1000, err, 0.99, inlPoint);
+    if (inlPoint.rows <= 15) {
+      std::cout << "RANSAC Times: " << i << std::endl;
+      break;
+    }
+    err = err/1.5;
+  }
 
 	std::cout<<"inlPoint: "<<inlPoint.rows<<std::endl;
 	std::cout<<"R="<<rvec<<std::endl;
@@ -215,7 +226,7 @@ Result_of_PnP MatchAndRansac(Frame::Ptr& frame1, Frame::Ptr& frame2, Camera_Intr
     cv::Mat imgMatch;
     // cv::drawMatches( pic1_rgb, feat1, pic2_rgb, feat2, matches, imgMatch);
     // cv::imshow( "matches", imgMatch);
-    // cv::imwrite( "./data/matches.png", imgMatch);
+    // // cv::imwrite( "./data/matches.png", imgMatch);
     // cv::waitKey(0);
 
     //Selete feature point match
